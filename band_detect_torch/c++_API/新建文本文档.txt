@@ -1,0 +1,12 @@
+
+
+cmake -DCMAKE_PREFIX_PATH=J:\coding\57_band_detect\torch_net\transfer2c++\c++\libtorch_gpu_debug -DCMAKE_BUILD_TYPE=Debug -G"Visual Studio 14 Win64" ..
+
+cmake -DCMAKE_PREFIX_PATH=J:\coding\57_band_detect\torch_net\transfer2c++\c++\libtorch -DCMAKE_BUILD_TYPE=Release -G"Visual Studio 14 Win64" ..
+
+
+
+
+cmake -DCMAKE_PREFIX_PATH=J:\coding\57_band_detect\torch_net\transfer2c++\c++\libtorch_cpu_debug -DCMAKE_BUILD_TYPE=Debug -G"Visual Studio 14 Win64" ..
+
+cmake -DCMAKE_PREFIX_PATH=J:\coding\57_band_detect\torch_net\transfer2c++\c++\libtorch_cpu -DCMAKE_BUILD_TYPE=Release -G"Visual Studio 14 Win64" ..
