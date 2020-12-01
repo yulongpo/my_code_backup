@@ -42,4 +42,4 @@ m4/lt~obsolete.m4
 autom4te.cache
 
 
-./Usrp_sample/data_sampled/*
+# ./Usrp_sample/data_sampled/*
