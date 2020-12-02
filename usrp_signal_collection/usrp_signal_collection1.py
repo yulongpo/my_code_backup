@@ -17,7 +17,8 @@ from os.path import join as pjoin
 import numpy as np
 import matplotlib.pyplot as plt
 import json
-
+import subprocess
+import signal
 
 from PyQt5.uic import compileUi, compileUiDir
 
@@ -44,7 +45,6 @@ class _config():
     sample_interval = "10 M"
     sample_nums = "100 k"
     sample_times = "1"
-    advance_mode = "0"
     
 class Config():
     u2ix_dict = {"":0, "k": 1, "M": 2, "G": 3}
@@ -69,7 +69,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.setWindowIcon(QIcon("signal_app_24.png"))
         self.resize(1280, 720)
         
-        self.plot_win = PlotWindow()
+#        self.plot_win = PlotWindow()
         
         # qss = "QWidget#MainWindow{background-color:red;}"
         # qss = "QWidget#MainWindow{border-image:url(signal_app_24.png);}"
@@ -92,9 +92,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.view_spec_config.sample_times = 1
         self.view_spec_config.sample_nums = 1*1024*1024
         
-        self.sample_thread = None  # SampleThread()
         
         self.initial()
+        
+        self.cur_sample_ix = 0
+        
+        # 初始化线程类
+        self.sample_work = UsrpSampleWork()
+        self.sample_thread = None  # SampleThread()
+        
         
         self.save_path_btn.clicked.connect(self.open_folder)
         self.gnu_radio_btn.clicked.connect(self.open_gnu_folder)
@@ -103,14 +109,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.ok_btn.setToolTip("开始采集信号")
         
         self.plot_btn.clicked.connect(self.plot_psd_start)
-        self.plot_win.closed.connect(self.plot_psd_stop)
+#        self.plot_win.closed.connect(self.plot_psd_stop)
         
         self.stop_btn.setEnabled(False)
         self.stop_btn.setToolTip("停止当前信号采样")
         self.stop_btn.clicked.connect(self.stop_current_sampling)
         
         self.advance_groupBox.hide()
-        self.advance_mode = False
+        self.advance_mode = self.config.advance_mode
         self.advance_mode_btn.setText("打开高级模式")
         self.advance_mode_btn.clicked.connect(self.set_advance_mode)      
         
@@ -135,9 +141,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         
     def closeEvent(self, event):
         self.plot_win.close()
-        self.sample_thread.stop()
-        self.sample_thread.quit()
-        self.sample_thread.wait()
+#        self.sample_thread.stop()
+#        self.sample_thread.quit()
+#        self.sample_thread.wait()
         
         
     def initial(self):
@@ -158,14 +164,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if not os.path.exists(self.home_dir):
             os.makedirs(self.home_dir)
         if not os.path.exists(self.config_path):
-            # self.CONFIG["gnu_radio_path"] = initial_config.gnu_radio_path
-            # self.CONFIG["save_path"] = initial_config.save_path
-            # self.CONFIG["FC"] = initial_config.fc
-            # self.CONFIG["FS"] = initial_config.fs
-            # self.CONFIG["stop_FC"] = initial_config.stop_fc
-            # self.CONFIG["sample_interval"] = initial_config.sample_interval
-            # self.CONFIG["sample_nums"] = initial_config.sample_nums
-            # self.CONFIG["sample_times"] = initial_config.sample_times
+            # 初始化CONFIG，方便保存数据
             for key in self.config_keys:
                 self.CONFIG[key] = initial_config.__getattribute__(key)
                 
@@ -267,98 +266,88 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     采样次数:\t\t{self.config.sample_times} \n")
     
         
-    def sample_thread_start(self):
+
+    def sample_thread_start(self):           
         self.textEdit.append("---- 开始采样 ----\n")
+        self.sample_thread = QThread()
+        self.sample_work = UsrpSampleWork(self.config)
+        self.sample_work.moveToThread(self.sample_thread)
         
-        self.sample_thread = SampleThread()
-        self.sample_thread.one_sample_end[int, str].connect(self.one_sample_end)
-        self.sample_thread.all_sample_end.connect(self.sample_thread_end)
-        
-        self.sample_thread.config = self.config
-        # self.sample_thread.mode = 2  # test_mode
-        self.sample_thread.mode = 1  # test_mode
-        self.sample_thread.start_sample = True
-        self.sample_thread.start()
-        
+        self.sample_thread.started.connect(self.sample_work.sample_process)
+        self.sample_work.one_sample_finished[int, str].connect(self.one_sample_finished)
+        self.sample_work.all_sample_finished.connect(self.sample_thread.quit)
+        self.sample_work.all_sample_finished.connect(self.sample_thread_end)
+        self.sample_work.all_sample_finished.connect(self.sample_work.deleteLater)
+        self.sample_thread.finished.connect(self.sample_thread.deleteLater)
+
         self.plot_btn.setEnabled(False)
         self.plot_btn.setToolTip("正在采集信号, 无法查看当前频谱")
         self.stop_btn.setEnabled(True)
         
         self.ok_btn.setEnabled(False)
-
-    def one_sample_end(self, ix, output_path):
-        self.textEdit.append(f"第 {ix} 次采样完成，共 {self.config.sample_times} 次，文件保存路径：{output_path}")
         
+        self.sample_thread.start()
+
+    def one_sample_finished(self, ix, output_path):
+        if not self.advance_mode:
+            self.textEdit.append(f"第 {ix+1} 次采样完成，共 {self.config.sample_times} 次，文件保存路径：{output_path}\n")
+        else:
+            _fc = int(ix*1e6)
+            self.textEdit.append(f"中心频率：{_fc} 采样完成，截止频率：{self.config.stop_fc}，文件保存路径：{output_path}\n")
+    
     def sample_thread_end(self):
         self.textEdit.append("---- 采样结束 ----\n")
-        
-        # self.sample_thread.terminate()
-        self.sample_thread.stop()
-        self.sample_thread.wait()
-        self.sample_thread = None
-        
+
         self.ok_btn.setEnabled(True)
         self.plot_btn.setEnabled(True)
         self.plot_btn.setToolTip("查看当前频谱")
         self.stop_btn.setEnabled(False)
         
     def stop_current_sampling(self):
+        self.sample_work.sample_stop.connect(self.sample_thread.quit)
+        self.sample_work.sample_stop.connect(self.sample_work.deleteLater)
+        
         self.textEdit.append("---- 停止采样 ----\n")
         self.stop_btn.setEnabled(False)
         
-        # self.sample_thread.terminate()
-        self.sample_thread.stop()
-        self.sample_thread.wait()
-        self.sample_thread = None
+        self.sample_work.stop()
         
+        self.ok_btn.setEnabled(True)
         self.plot_btn.setEnabled(True)
         self.plot_btn.setToolTip("查看当前频谱")
         
     def plot_psd_start(self):
         self.textEdit.append("---- 查看频谱 ----\n")
-        self.sample_thread = SampleThread()
-        self.sample_thread.spec_data_get[list].connect(self.plot_psd)
+        out_file_name = "usrp_tmp.bin"
+        self.psd_thread = QThread()
+        self.psd_work = ViewPSD(self.view_spec_config, out_file_name)
+        self.psd_work.moveToThread(self.psd_thread)
         
-        self.sample_thread.out_file_name = "usrp_tmp.bin"
-        self.sample_thread.config = self.view_spec_config
+        self.psd_thread.started.connect(self.psd_work.plot_psd_process)
+        self.psd_work.view_finished.connect(self.psd_thread.quit)
+        self.psd_work.view_finished.connect(self.plot_psd_stop)
+        self.psd_work.view_finished.connect(self.psd_work.deleteLater)
+        self.psd_thread.finished.connect(self.psd_thread.deleteLater)
         
-        self.sample_thread.mode = 0
-        self.sample_thread.start_sample = True
-        
-        self.sample_thread.start()
+        self.psd_thread.start()
         
         self.ok_btn.setEnabled(False)
-        
-    @pyqtSlot(list)
-    def plot_psd(self, data):
-        print("-- plot spec --")
-        self.plot_win.show()
-        self.plot_win.fc = self.config.fc
-        self.plot_win.fs = self.config.fs
-        self.plot_win.sig = data
-        self.plot_win.t.start(50)
 
     @pyqtSlot()
     def plot_psd_stop(self):
-        self.textEdit.append("---- 查看频谱 ----\n")
-        self.sample_thread.start_plot = False
-        # self.sample_thread.terminate()
-        self.sample_thread.stop()
-        self.sample_thread.wait()
-        self.sample_thread = None
-        
+        self.textEdit.append("---- 结束查看 ----\n")       
         self.ok_btn.setEnabled(True)
         
     def set_advance_mode(self):
-        self.advance_mode = not self.advance_mode
+        self.config.advance_mode = self.advance_mode = not self.advance_mode
         if self.advance_mode:
             self.advance_groupBox.show()
             self.advance_mode_btn.setText("退出高级模式")
-            self.textEdit.setText("-- 退出高级模式 --")
+            self.textEdit.append("-- 打开高级模式 --")
         else:
             self.advance_groupBox.hide()
             self.advance_mode_btn.setText("打开高级模式")
-            self.textEdit.setText("-- 打开高级模式 --")
+            self.textEdit.append("-- 退出高级模式 --")
         
     def open_folder(self):
         dataPath = QtWidgets.QFileDialog.getExistingDirectory(self,
@@ -495,7 +484,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.CONFIG["sample_times"] = new_times
         self.save_config()
         
-
+    def get_time(self):
+        now = int(time.time())     # 1533952277
+        timeArray = time.localtime(now)
+        strTime = time.strftime("%Y-%m-%d-%H-%M-%S", timeArray)
+        return strTime
+    
+    
 def generate_sinusoid(N, A, f0, fs, phi):
     '''
     N(int) : number of samples
@@ -518,56 +513,41 @@ def generate_sinusoid(N, A, f0, fs, phi):
     return x
 
 
+
 class ViewPSD(QObject):  # 
     view_finished = pyqtSignal()
-    def __init__(self, config, parent=None):
+    plot_ready = pyqtSignal(list)
+    def __init__(self, config, out_file_name, parent=None):
         super(ViewPSD, self).__init__(parent)
         self.config = config
+        self.out_file_name = out_file_name
         self.plot_window = PlotWindow()
+        
         self.plot_window.closed.connect(self.stop_view_psd)
+        
+        self.plot_window.show()
+        self.plot_flg = False
+        
+        self.plot_ready[list].connect(self.plot)
+        
+    def __del__(self):
+        self.plot_window.close()
         
     def update_config(self, config):
         self.config = config
         
-    def process_tmp_sample(self):
-        pass
-    
-    def stop_view_psd(self):
-        self.view_finished.emit()
-
-
-class UsrpSampleWork(QObject):
-    def __init__(self, ):
-        pass
-
-
-class SampleThread(QThread):
-    one_sample_end = pyqtSignal(int, str)
-    all_sample_end = pyqtSignal()
-    tmp_sample_end = pyqtSignal()
-    spec_data_get = pyqtSignal(list)
-    
-    def __init__(self):
-        super(SampleThread, self).__init__()
-        self.out_file_name = ""
-        self.config = Config()
-        self.start_sample = False
-        self.mode = 0  # 0: psd  1: sample
+    def plot(self, data):
+        print("-- plot --")
+        self.plot_window.fc = self.config.fc
+        self.plot_window.fs = self.config.fs
+        self.plot_window.sig = data
+#        if not self.plot_window.t.isActive():
+        if self.plot_flg:
+            self.plot_window.t.start(50)
         
-    def __del__(self):
-        self.start_sample = False
-        self.wait()
+    def plot_psd_process(self):
+        self.plot_flg = True
         
-    # def start(self):
-    #     self.start_sample = True
-    #     print("===========start_sample: ", self.start_sample)
-    #     self.start()
-        
-    def stop(self):
-        self.start_sample = False
-        self.quit()
-        
-    def view_psd_mode(self):
         bat = pjoin(self.config.gnu_radio_path, "run_gr.bat")
         rx_py = pjoin(self.config.gnu_radio_path, "uhd_rx_cfile.py")
         output_path = pjoin(self.config.save_path, self.out_file_name)
@@ -575,7 +555,7 @@ class SampleThread(QThread):
         print(f"{bat} {rx_py} {output_path} -s -f {self.config.fc} -r {self.config.fs} -N {self.config.sample_nums}")
         
         print("查看频谱模式")
-        while self.start_sample:
+        while self.plot_flg:
             print("=========================")
             os.spawnl(os.P_WAIT, bat,
                       f"{bat} {rx_py} {output_path} -s -f {self.config.fc} -r {self.config.fs} -N {self.config.sample_nums}")
@@ -585,59 +565,205 @@ class SampleThread(QThread):
             
             d_i, d_q = np.reshape(tmp, (-1, 2)).T
             data = d_i + 1j*d_q
-#            time.sleep(5)
-            if self.start_sample:
-                self.spec_data_get.emit(list(data))
+            
+#            if not self.plot_flg:
+#                break
+            self.plot_ready.emit(list(data))
     
-    def sample_mode(self):
-        print("采样模式")
+    def stop_view_psd(self):
+        print("-- stop_view_psd --")
+        self.plot_flg = False
+        self.view_finished.emit()
+
+
+
+class UsrpSampleWork(QObject):
+    """
+    采样线程，每一次调用需要传入参数，并且只采样一次
+    """
+    sample_stop = pyqtSignal()
+    one_sample_finished = pyqtSignal(int, str)
+    all_sample_finished = pyqtSignal()
+#    error_config = pyqtSignal()
+    def __init__(self, config=None, parent=None):
+        super(UsrpSampleWork, self).__init__(parent)
+        self.config = config
+        self.stop_sample = False
+        
+        self.proc = None
+        
+    def update(self, config):
+        self.config = config
+        
+    def stop(self):
+        self.stop_sample = True
+#        self.proc.kill()
+        os.kill(self.proc.pid, signal.SIGTERM)
+        self.sample_stop.emit()
+        
+    @pyqtSlot()
+    def sample_process(self):
+        self.stop_sample = False
+        
         bat = pjoin(self.config.gnu_radio_path, "run_gr.bat")
         rx_py = pjoin(self.config.gnu_radio_path, "uhd_rx_cfile.py")
-            
-        for i in range(self.config.sample_times):
-            if self.start_sample:
-                self.out_file_name = "{}_fc_{:d}_bw_{:d}_N_{:d}.dat".format(self.get_time(),
-                                                                            self.config.fc,
-                                                                            self.config.fs,
-                                                                            self.config.sample_nums)
-                output_path = pjoin(self.config.save_path, self.out_file_name)
-                os.spawnl(os.P_WAIT, bat, f"{bat} {rx_py} {output_path} -s -f {self.config.fc} -r {self.config.fs} -N {self.config.sample_nums}")
-                self.one_sample_end.emit(i+1, output_path)
-            else:
-                break
-            
-        if self.start_sample:
-            self.all_sample_end.emit()
-    
-    def test_mode(self):
-        print("测试模式")
-        if not os.path.exists("./data_sampled"):
-            os.makedirs("./data_sampled")
-            
-        for i in range(self.config.sample_times):
-            os.spawnl(os.P_WAIT, "D:\\program\\GNURadio-3.7\\bin\\run_gr.bat",
-                      f"D:\\program\\GNURadio-3.7\\bin\\run_gr.bat \
-                          D:\\program\\GNURadio-3.7\\bin\\uhd_rx_cfile.py ./data_sampled/test_{i+1}.bin \
-                              -s -f 100000000 -r 1000000 -N 1024")
-            self.one_sample_end.emit(i+1, os.path.abspath(f"./data_sampled/test_{i+1}.bin"))
-        self.all_sample_end.emit()
-        
-    def run(self):
-        if self.mode == 0:
-            self.view_psd_mode()
-        elif self.mode == 1:
-            self.sample_mode()
-        elif self.mode == 2:
-            self.test_mode()
+        if not self.config.advance_mode:
+            for ix in range(self.config.sample_times):
+                out_file_name = "{}_fc_{:d}_bw_{:d}_N_{:d}.dat".format(self.get_time(),
+                                      self.config.fc,
+                                      self.config.fs,
+                                      self.config.sample_nums)
+                output_path = pjoin(self.config.save_path, out_file_name)
+                
+                print(f"{bat} {rx_py} {output_path} -s -f {self.config.fc} -r {self.config.fs} -N {self.config.sample_nums}")
+                
+                self.proc = subprocess.Popen(f"{bat} {rx_py} {output_path} \
+                                             -s -f {self.config.fc} -r {self.config.fs} \
+                                             -N {self.config.sample_nums}",
+                                             stdin=subprocess.PIPE, 
+                                             stdout=subprocess.PIPE,
+#                                             startupinfo=si,
+                                             cwd=self.config.save_path)
+                
+                print("=========================")
+                print("++++ ----", self.proc.pid, "---- ++++")
+                print("=========================")
+                self.proc.wait()
+                if self.stop_sample:
+                    return
+                self.one_sample_finished.emit(ix, output_path)
         else:
-            raise ValueError(f"采样线程模式设置错误：{self.mode}")
-        print('wwwwwwwwwwwwwwwwwwwwwwwwwww')
-            
+            print("-- 高级模式采样 --")
+            self.start_fc = self.config.fc
+            self.stop_fc = self.config.stop_fc
+            while self.start_fc <= self.stop_fc:
+                out_file_name = "{}_fc_{:d}_bw_{:d}_N_{:d}.dat".format(self.get_time(),
+                                      self.start_fc,
+                                      self.config.fs,
+                                      self.config.sample_nums)
+                output_path = pjoin(self.config.save_path, out_file_name)
+                
+                print(f"{bat} {rx_py} {output_path} -s -f {self.config.fc} -r {self.config.fs} -N {self.config.sample_nums}")
+                
+                self.proc = subprocess.Popen(f"{bat} {rx_py} {output_path} \
+                                             -s -f {self.config.fc} -r {self.config.fs} \
+                                             -N {self.config.sample_nums}",
+                                             stdin=subprocess.PIPE, 
+                                             stdout=subprocess.PIPE,
+#                                             startupinfo=si,
+                                             cwd=self.config.save_path)
+                
+                print("=========================")
+                print("++++ ----", self.proc.pid, "---- ++++")
+                print("=========================")
+                self.proc.wait()
+                if self.stop_sample:
+                    break
+                self.one_sample_finished.emit(self.start_fc/1e6, output_path)
+                self.start_fc += self.config.sample_interval
+                
+        
+        self.all_sample_finished.emit()
+
     def get_time(self):
         now = int(time.time())     # 1533952277
         timeArray = time.localtime(now)
         strTime = time.strftime("%Y-%m-%d-%H-%M-%S", timeArray)
-        return strTime            
+        return strTime
+
+#class SampleThread(QThread):
+#    one_sample_end = pyqtSignal(int, str)
+#    all_sample_end = pyqtSignal()
+#    tmp_sample_end = pyqtSignal()
+#    spec_data_get = pyqtSignal(list)
+#    
+#    def __init__(self):
+#        super(SampleThread, self).__init__()
+#        self.out_file_name = ""
+#        self.config = Config()
+#        self.start_sample = False
+#        self.mode = 0  # 0: psd  1: sample
+#        
+#    def __del__(self):
+#        self.start_sample = False
+#        self.wait()
+#        
+#    # def start(self):
+#    #     self.start_sample = True
+#    #     print("===========start_sample: ", self.start_sample)
+#    #     self.start()
+#        
+#    def stop(self):
+#        self.start_sample = False
+#        self.quit()
+#        
+#    def view_psd_mode(self):
+#        bat = pjoin(self.config.gnu_radio_path, "run_gr.bat")
+#        rx_py = pjoin(self.config.gnu_radio_path, "uhd_rx_cfile.py")
+#        output_path = pjoin(self.config.save_path, self.out_file_name)
+#        
+#        print(f"{bat} {rx_py} {output_path} -s -f {self.config.fc} -r {self.config.fs} -N {self.config.sample_nums}")
+#        
+#        print("查看频谱模式")
+#        while self.start_sample:
+#            print("=========================")
+#            os.spawnl(os.P_WAIT, bat,
+#                      f"{bat} {rx_py} {output_path} -s -f {self.config.fc} -r {self.config.fs} -N {self.config.sample_nums}")
+#            with open(output_path, "rb") as f:
+#                buff = f.read()
+#                tmp = np.frombuffer(buff, np.int16)/32768
+#            
+#            d_i, d_q = np.reshape(tmp, (-1, 2)).T
+#            data = d_i + 1j*d_q
+##            time.sleep(5)
+#            if self.start_sample:
+#                self.spec_data_get.emit(list(data))
+#    
+#    def sample_mode(self):
+#        print("采样模式")
+#        bat = pjoin(self.config.gnu_radio_path, "run_gr.bat")
+#        rx_py = pjoin(self.config.gnu_radio_path, "uhd_rx_cfile.py")
+#            
+#        for i in range(self.config.sample_times):
+#            if self.start_sample:
+#                self.out_file_name = "{}_fc_{:d}_bw_{:d}_N_{:d}.dat".format(self.get_time(),
+#                                                                            self.config.fc,
+#                                                                            self.config.fs,
+#                                                                            self.config.sample_nums)
+#                output_path = pjoin(self.config.save_path, self.out_file_name)
+#                os.spawnl(os.P_WAIT, bat, f"{bat} {rx_py} {output_path} -s -f {self.config.fc} -r {self.config.fs} -N {self.config.sample_nums}")
+#                self.one_sample_end.emit(i+1, output_path)
+#            else:
+#                break
+#            
+#        if self.start_sample:
+#            self.all_sample_end.emit()
+#    
+#    def test_mode(self):
+#        print("测试模式")
+#        if not os.path.exists("./data_sampled"):
+#            os.makedirs("./data_sampled")
+#            
+#        for i in range(self.config.sample_times):
+#            os.spawnl(os.P_WAIT, "D:\\program\\GNURadio-3.7\\bin\\run_gr.bat",
+#                      f"D:\\program\\GNURadio-3.7\\bin\\run_gr.bat \
+#                          D:\\program\\GNURadio-3.7\\bin\\uhd_rx_cfile.py ./data_sampled/test_{i+1}.bin \
+#                              -s -f 100000000 -r 1000000 -N 1024")
+#            self.one_sample_end.emit(i+1, os.path.abspath(f"./data_sampled/test_{i+1}.bin"))
+#        self.all_sample_end.emit()
+#        
+#    def run(self):
+#        if self.mode == 0:
+#            self.view_psd_mode()
+#        elif self.mode == 1:
+#            self.sample_mode()
+#        elif self.mode == 2:
+#            self.test_mode()
+#        else:
+#            raise ValueError(f"采样线程模式设置错误：{self.mode}")
+#        print('wwwwwwwwwwwwwwwwwwwwwwwwwww')
+#            
+           
                 
 
 if __name__ == "__main__":
