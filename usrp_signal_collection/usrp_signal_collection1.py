@@ -537,7 +537,8 @@ class ViewPSD(QObject):  #
 
 
 class UsrpSampleWork(QObject):
-    def __init__(self, )
+    def __init__(self, ):
+        pass
 
 
 class SampleThread(QThread):
