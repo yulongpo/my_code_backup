@@ -518,26 +518,26 @@ def generate_sinusoid(N, A, f0, fs, phi):
     return x
 
 
-# class ViewPSD(QObject):  # 
-#     view_finished = pyqtSignal()
-#     def __init__(self, config, parent=None):
-#         super(ViewPSD, self).__init__(parent)
-#         self.config = config
-#         self.plot_window = PlotWindow()
-#         self.plot_window.closed.connect(self.stop_view_psd)
+class ViewPSD(QObject):  # 
+    view_finished = pyqtSignal()
+    def __init__(self, config, parent=None):
+        super(ViewPSD, self).__init__(parent)
+        self.config = config
+        self.plot_window = PlotWindow()
+        self.plot_window.closed.connect(self.stop_view_psd)
         
-#     def update_config(self, config):
-#         self.config = config
+    def update_config(self, config):
+        self.config = config
         
-#     def process_tmp_sample(self):
-#         pass
+    def process_tmp_sample(self):
+        pass
     
-#     def stop_view_psd(self):
-#         self.view_finished.emit()
+    def stop_view_psd(self):
+        self.view_finished.emit()
 
 
-# class UsrpSampleWork(QObject):
-#     def __init__(self, )
+class UsrpSampleWork(QObject):
+    def __init__(self, )
 
 
 class SampleThread(QThread):
