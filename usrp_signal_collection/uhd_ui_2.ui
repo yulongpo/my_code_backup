@@ -63,6 +63,12 @@
          </item>
          <item>
           <widget class="QPushButton" name="gnu_radio_btn">
+           <property name="minimumSize">
+            <size>
+             <width>80</width>
+             <height>0</height>
+            </size>
+           </property>
            <property name="text">
             <string>选择</string>
            </property>
@@ -90,6 +96,12 @@
          </item>
          <item>
           <widget class="QPushButton" name="save_path_btn">
+           <property name="minimumSize">
+            <size>
+             <width>80</width>
+             <height>0</height>
+            </size>
+           </property>
            <property name="text">
             <string>选择</string>
            </property>
@@ -377,19 +389,6 @@
             </widget>
            </item>
            <item>
-            <widget class="QLabel" name="label_10">
-             <property name="minimumSize">
-              <size>
-               <width>120</width>
-               <height>0</height>
-              </size>
-             </property>
-             <property name="text">
-              <string/>
-             </property>
-            </widget>
-           </item>
-           <item>
             <spacer name="horizontalSpacer_7">
              <property name="orientation">
               <enum>Qt::Horizontal</enum>
@@ -401,6 +400,25 @@
               </size>
              </property>
             </spacer>
+           </item>
+           <item>
+            <widget class="QPushButton" name="advance_mode_btn">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="maximumSize">
+              <size>
+               <width>80</width>
+               <height>16777215</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>退出高级模式</string>
+             </property>
+            </widget>
            </item>
           </layout>
          </item>
@@ -514,6 +532,9 @@
              <height>0</height>
             </size>
            </property>
+           <property name="maximum">
+            <number>999999999</number>
+           </property>
           </widget>
          </item>
          <item>
@@ -578,25 +599,6 @@
          </size>
         </property>
        </spacer>
-      </item>
-      <item>
-       <widget class="QPushButton" name="advance_mode_btn">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="maximumSize">
-         <size>
-          <width>80</width>
-          <height>16777215</height>
-         </size>
-        </property>
-        <property name="text">
-         <string>退出高级模式</string>
-        </property>
-       </widget>
       </item>
      </layout>
     </item>
