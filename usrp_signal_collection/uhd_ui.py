@@ -263,6 +263,8 @@ class Ui_MainWindow(object):
         font.setPointSize(11)
         self.textEdit.setFont(font)
         self.textEdit.setStyleSheet("")
+        self.textEdit.setFrameShape(QtWidgets.QFrame.StyledPanel)
+        self.textEdit.setReadOnly(True)
         self.textEdit.setObjectName("textEdit")
         self.gridLayout_3.addWidget(self.textEdit, 5, 0, 1, 1)
         MainWindow.setCentralWidget(self.centralwidget)

@@ -12,22 +12,22 @@ from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 import sys
 
-import matplotlib
-matplotlib.use("Qt5Agg")  # 声明使用QT5
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavigationToolbar
-from matplotlib.figure import Figure
-import matplotlib.pyplot as plt
+# import matplotlib
+# matplotlib.use("Qt5Agg")  # 声明使用QT5
+# from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+# from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavigationToolbar
+# from matplotlib.figure import Figure
+# import matplotlib.pyplot as plt
 
 import numpy as np
 from scipy import signal
 
-from PyQt5.uic import compileUi, compileUiDir
+# from PyQt5.uic import compileUi, compileUiDir
 
-with open("plot_window_ui.py", "wt", encoding='utf-8') as pyFile:
-    uiFile = open("plot_window.ui", "r", encoding='utf-8')
-    compileUi(uiFile, pyFile)
-    uiFile.close()
+# with open("plot_window_ui.py", "wt", encoding='utf-8') as pyFile:
+#     uiFile = open("plot_window.ui", "r", encoding='utf-8')
+#     compileUi(uiFile, pyFile)
+#     uiFile.close()
 
 from plot_window_ui import Ui_MainWindow
 
@@ -121,21 +121,21 @@ class PlotWindow(QMainWindow, Ui_MainWindow):
         
         
         
-class SpectrumFigure(FigureCanvas):
-    def __init__(self):
-        self.fig = Figure()
-        super(SpectrumFigure, self).__init__(self.fig) #此句必不可少，否则不能显示图形
-        self.fig.set_tight_layout(True)
-        self.ax = self.fig.add_subplot(111)
+# class SpectrumFigure(FigureCanvas):
+#     def __init__(self):
+#         self.fig = Figure()
+#         super(SpectrumFigure, self).__init__(self.fig) #此句必不可少，否则不能显示图形
+#         self.fig.set_tight_layout(True)
+#         self.ax = self.fig.add_subplot(111)
         
-        self.sig = np.random.randn(32768)
-        self.update_fig()
+#         self.sig = np.random.randn(32768)
+#         self.update_fig()
         
-    def update_fig(self):
-        print("-- fig plot --")
-        self.ax.clear()
-        self.ax.psd(self.sig, NFFT=1024, Fc=0, Fs=2200)
-        self.ax.set_xlim((0, 1100))
+#     def update_fig(self):
+#         print("-- fig plot --")
+#         self.ax.clear()
+#         self.ax.psd(self.sig, NFFT=1024, Fc=0, Fs=2200)
+#         self.ax.set_xlim((0, 1100))
         
         
 if __name__ == "__main__":

@@ -5,6 +5,16 @@ Created on Sun Nov 29 21:51:45 2020
 @author: hh
 """
 
+# Todo: 20201204
+#    1. 已知bug：1）打开/退出高级模式按钮在其它电脑上尺寸错误；
+#               2）关闭查看频谱模式时，输出两次 "---- 结束查看 ----"；
+#    2. 将输入与频率相关的输入框改为 float 输入，同时限制各个输入框的数值大小；
+#    3. 频谱显示窗口：1）不再实时控制窗口中的显示数值界限，仅在第一次显示时控制；
+#                  2）添加针对频谱控制显示的控制按钮，如: autoscale, maxhold, minhold, averagehold等；
+#                  3）添加时频图显示；
+#                  3）将频谱计算过程推入多线程计算；
+#    4. 优化主界面输出显示效果；
+#    5. 优化打包成 exe 过程，节省打包大小。
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import *
@@ -15,17 +25,18 @@ import sys
 import os
 from os.path import join as pjoin
 import numpy as np
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import json
 import subprocess
 import signal
 
-from PyQt5.uic import compileUi, compileUiDir
 
-with open("uhd_ui.py", "wt", encoding='utf-8') as pyFile:
-    uiFile = open("uhd_ui_2.ui", "r", encoding='utf-8')
-    compileUi(uiFile, pyFile)
-    uiFile.close()
+# from PyQt5.uic import compileUi, compileUiDir
+
+# with open("uhd_ui.py", "wt", encoding='utf-8') as pyFile:
+#     uiFile = open("uhd_ui_2.ui", "r", encoding='utf-8')
+#     compileUi(uiFile, pyFile)
+#     uiFile.close()
 
 
 from uhd_ui import Ui_MainWindow
@@ -335,7 +346,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     @pyqtSlot()
     def plot_psd_stop(self):
-        self.textEdit.append("---- 结束查看 ----\n")       
+        self.textEdit.append("---- 结束查看 ----\n")
         self.ok_btn.setEnabled(True)
         
     def set_advance_mode(self):

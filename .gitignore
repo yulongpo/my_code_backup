@@ -42,6 +42,13 @@ m4/lt~obsolete.m4
 autom4te.cache
 
 
-usrp_signal_collection/data_sampled/*
-usrp_signal_collection/_pycache*
+*.pyc
+*.iss
+*.txt
+*.dat
+*.spec
+
+DIR
+dist
+build
 
